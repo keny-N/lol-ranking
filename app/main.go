@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/joho/godotenv"
 )
 
 // httpPort はHTTPサーバーがリッスンするポートです。KoyebのPORT環境変数を優先します。
@@ -106,11 +105,11 @@ var (
 )
 
 func init() {
-	// ../.env を指定してプロジェクトルートの .env ファイルを読み込む
-	err := godotenv.Load("../.env")
-	if err != nil {
-		log.Println("Error loading .env file, using environment variables")
-	}
+	// .envファイルの読み込み処理を削除し、環境変数を直接参照するようにします。
+	// err := godotenv.Load("../.env")
+	// if err != nil {
+	// 	log.Println("Error loading .env file, using environment variables")
+	// }
 
 	discordToken = os.Getenv("DISCORD_TOKEN")
 	if discordToken == "" {
