@@ -18,6 +18,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// httpPort はHTTPサーバーがリッスンするポートです。KoyebのPORT環境変数を優先します。
+const httpPortEnvVar = "PORT"
+const defaultHttpPort = "8080"
+
 const (
 	riotAccountAPIBaseURL = "https://asia.api.riotgames.com" // PUUID取得用
 	riotMatchAPIBaseURL   = "https://asia.api.riotgames.com" // Match-V5 API用 (地域エンドポイント)
@@ -145,7 +149,27 @@ func main() {
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
 
+	// HTTPサーバーをgoroutineで起動
+	go startHttpServer()
+
 	dg.Close()
+}
+
+// startHttpServer はKoyebのヘルスチェック用のHTTPサーバーを起動します。
+func startHttpServer() {
+	port := os.Getenv(httpPortEnvVar)
+	if port == "" {
+		port = defaultHttpPort
+	}
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "Discord Bot is running.")
+	})
+
+	log.Printf("HTTP server listening on port %s", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatalf("Error starting HTTP server: %v", err)
+	}
 }
 
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -604,21 +628,55 @@ func updateEnvFile(key, value string) error {
 
 // addPlayerToEnvFile は LOL_PLAYERS に新しいプレイヤーを追加します。
 func addPlayerToEnvFile(newPlayerRiotID string) error {
-	var currentPlayers []string
-	lolPlayersStr := os.Getenv("LOL_PLAYERS") // 現在の環境変数から取得 (godotenvでロード済み)
-
-	if lolPlayersStr != "" {
-		currentPlayers = strings.Split(lolPlayersStr, ",")
+	envFilePath := "../.env"
+	input, err := os.ReadFile(envFilePath)
+	if err != nil {
+		// .envファイルが存在しない場合は、新規作成と同様の処理を行う
+		if os.IsNotExist(err) {
+			log.Printf(".env file not found at %s, creating LOL_PLAYERS entry.", envFilePath)
+			return updateEnvFile("LOL_PLAYERS", newPlayerRiotID)
+		}
+		return fmt.Errorf("failed to read .env file: %w", err)
 	}
 
-	// 重複チェック (念のため)
+	lines := strings.Split(string(input), "\n")
+	var currentPlayers []string
+	foundKey := false
+	key := "LOL_PLAYERS"
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, key+"=") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 && parts[1] != "" {
+				currentPlayers = strings.Split(parts[1], ",")
+			}
+			foundKey = true
+			break // LOL_PLAYERS が見つかったらループを抜ける
+		}
+	}
+
+	// 重複チェック
 	for _, p := range currentPlayers {
 		if p == newPlayerRiotID {
 			return nil // 既に追加されていれば何もしない
 		}
 	}
 	currentPlayers = append(currentPlayers, newPlayerRiotID)
-	return updateEnvFile("LOL_PLAYERS", strings.Join(currentPlayers, ","))
+
+	// currentPlayersから空の要素を削除（Splitで空文字列が生まれる場合があるため）
+	var cleanedPlayers []string
+	for _, p := range currentPlayers {
+		if p != "" {
+			cleanedPlayers = append(cleanedPlayers, p)
+		}
+	}
+
+	if !foundKey {
+		// LOL_PLAYERS キー自体が .env にない場合 (updateEnvFileが対応するが、明示的に)
+		log.Printf("LOL_PLAYERS key not found in .env, adding new entry.")
+	}
+
+	return updateEnvFile(key, strings.Join(cleanedPlayers, ","))
 }
 
 func getRankValues(tier, rank string) (int, int) {
