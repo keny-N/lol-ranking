@@ -13,7 +13,7 @@ League of Legendsのランキング情報を表示するアプリケーション
    git clone https://github.com/あなたのユーザー名/lol-ranking.git
    cd lol-ranking
    ```
-2. 必要な環境変数を`.env`ファイルに設定します。`.env.example`を参考にしてください（もしあれば）。
+2. 必要な環境変数を`.env`ファイルに設定します。`.env.example`を参考にしてください
 3. 依存関係をインストールします。
    ```bash
    cd app
